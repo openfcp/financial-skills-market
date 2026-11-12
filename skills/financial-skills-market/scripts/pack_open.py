@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import zipfile
 from pathlib import Path
 
@@ -29,7 +30,9 @@ SKILL_DIR = Path(__file__).resolve().parent.parent
 IDENT = "financial-skills-market"          # 平台的 kebab-case 标识符
 DISPLAY_ZH = "金融技能市场"
 DISPLAY_EN = "Finance Skill Market"
-EXCLUDE = {"pack_open.py"}
+# 平台会核对「SKILL.md 里提到的文件」是否真的在包内（缺了报「资产包缺少必需资源」），
+# 所以这里不做任何排除——包里有什么，文档就该写什么。
+EXCLUDE: set[str] = set()
 
 
 def split_frontmatter(text: str) -> tuple[str, str]:
@@ -77,6 +80,22 @@ def read_version(fm: str) -> str:
     return "0.0.0"
 
 
+def check_references(body: str, packaged: set[str]) -> list[str]:
+    """找出 SKILL.md 正文里提到、但包里没有的文件路径。
+
+    开放平台的审核会做这件事（缺了报「资产包缺少必需资源」），
+    本地先拦一道，省掉一轮「提交 → 被拒 → 改 → 再提交」。
+    """
+    # 只认「带扩展名的具体文件」：正文里像 assets/references 这种叙述不是路径，
+    # 一并报出来会逼着人去凑假文件。
+    pat = re.compile(
+        r"(?:scripts|references|assets)/[A-Za-z0-9_.\-]+"
+        r"\.(?:py|md|json|ya?ml|txt|sh|html|js|ts)\b"
+    )
+    missing = {m.group(0) for m in pat.finditer(body)} - packaged
+    return sorted(missing)
+
+
 def build(out_dir: Path) -> Path:
     skill_md = SKILL_DIR / "SKILL.md"
     fm, body = split_frontmatter(skill_md.read_text(encoding="utf-8"))
@@ -88,8 +107,9 @@ def build(out_dir: Path) -> Path:
     files = sorted(p for p in SKILL_DIR.rglob("*")
                    if p.is_file() and not p.name.startswith(".")
                    and "__pycache__" not in p.parts
-                   # 打包脚本自己是开发工具，不随技能分发
                    and p.name not in EXCLUDE)
+    packaged = {p.relative_to(SKILL_DIR).as_posix() for p in files}
+    packaged.add("SKILL.md")
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
         for p in files:
             rel = p.relative_to(SKILL_DIR)
@@ -101,13 +121,20 @@ def build(out_dir: Path) -> Path:
 
     print(f"[pack-open] {zip_path}  {round(zip_path.stat().st_size / 1024, 1)} KB / {len(files)} 个文件")
     print(f"[pack-open] name → {IDENT}   display_name → {DISPLAY_ZH}   version → {version}")
-    # 自检：包内 name 必须真的是 kebab-case
+    # 自检 1：包内 name 必须真的是 kebab-case
     with zipfile.ZipFile(zip_path) as z:
         head = z.read(f"{IDENT}/SKILL.md").decode("utf-8").split("---")[1]
     got = next((ln.split(":", 1)[1].strip() for ln in head.splitlines()
                 if ln.startswith("name:")), "")
     print(f"[pack-open] 包内 name = {got!r}  "
           f"{'✅ kebab-case' if got == IDENT else '❌ 改写失败'}")
+    # 自检 2：SKILL.md 里引用的文件必须都在包内
+    missing = check_references(body, packaged)
+    if missing:
+        print(f"[pack-open] ❌ 悬空引用 {len(missing)} 项：{', '.join(missing)}")
+        print("[pack-open] 平台会报「资产包缺少必需资源」，已拒绝出包。")
+        raise SystemExit(1)
+    print("[pack-open] ✅ SKILL.md 引用的文件全部在包内")
     if got != IDENT:
         raise SystemExit(1)
     return zip_path
@@ -115,8 +142,7 @@ def build(out_dir: Path) -> Path:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="打 WorkBuddy 开放平台上传包（name 转 kebab-case）")
-    ap.add_argument("--out", default=str(SKILL_DIR.parent.parent / "publish" / "open"),
-                    help="输出目录（默认 ~/.workbuddy/skills/../publish/open 之外请显式指定）")
+    ap.add_argument("--out", default="dist", help="输出目录（默认当前目录下 dist/）")
     args = ap.parse_args()
     out = Path(args.out).expanduser()
     if not out.is_absolute():

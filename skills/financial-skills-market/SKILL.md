@@ -4,7 +4,7 @@ slug: financial-skills-market
 displayName: 金融技能市场
 display_name: 金融技能市场
 display_name_en: Finance Skill Market
-version: 1.0.2
+version: 1.0.3
 author: openfcp
 license: MIT
 homepage: https://openfcp.github.io/awesome-financial-skills/
