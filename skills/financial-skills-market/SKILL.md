@@ -4,7 +4,7 @@ slug: financial-skills-market
 displayName: 金融技能市场
 display_name: 金融技能市场
 display_name_en: Finance Skill Market
-version: 1.0.1
+version: 1.0.2
 author: openfcp
 license: MIT
 homepage: https://openfcp.github.io/awesome-financial-skills/
@@ -101,3 +101,15 @@ python3 scripts/list_catalog.py --json             # 原始条目
 - `scripts/add_market.py` — 整包市场安装（下载 zip / 解压 / 校验 / 登记 / 备份）
 - `scripts/install_one.py` — 单个技能安装（GitHub 目录克隆式下载）
 - `scripts/list_catalog.py` — 读线上 `catalog.json`，按分类或关键词列出
+- `scripts/pack_open.py` — 打 WorkBuddy 开放平台上传包（只把 frontmatter 的 `name` 换成 kebab-case，正文不动）
+
+## 发布到开放平台时的一个字段冲突
+
+WorkBuddy 客户端把 frontmatter 的 `name` 当**显示名兼触发名**（`Skill(skill="金融技能市场")` 靠它命中），
+开放平台却把 `name` 当**标识符**，只收 kebab-case，中文直接报：
+
+> 解析失败：Skill 标识名（name）格式不正确，仅支持小写字母、数字和连字符（kebab-case）
+
+同一个字段两边语义冲突，所以**不要为了上传去改源文件的 `name`**——那会让本地技能没法用中文名调用。
+正确做法是跑 `python3 scripts/pack_open.py`，它派生出 `name: financial-skills-market` 的上传包，
+显示名仍由 `display_name` / `displayName` 提供。
