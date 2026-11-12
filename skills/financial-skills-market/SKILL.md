@@ -91,7 +91,7 @@ python3 scripts/list_catalog.py --json             # 原始条目
 
 - **`--dry-run` 就失败**：网络到不了 zip 地址。让用户确认 `https://openfcp.github.io/awesome-financial-skills/awesome-financial-skills.zip` 能下载；墙内可先用浏览器打开站点确认可达。
 - **装完在「套件」里看不到**：九成是没重启，或登记项被应用回写覆盖。查 `~/.workbuddy/plugins/known_marketplaces.json` 里有没有这个市场的键；没有就退出应用重跑一次。
-- **`install_one.py` 取不到文件**：脚本会自动从 raw.githubusercontent.com 切到 jsDelivr；两个都失败才是网络问题。
+- **`install_one.py` 取不到文件**：脚本按「GitHub 内容 API → raw → jsDelivr」三条通道依次试，有 `gh` 登录还会带上 token 提高额度。三条全失败才是网络问题；这台机器上 raw 常静默超时、jsDelivr 对新仓库会卡在回源，属正常现象，不用改配置。
 - **技能 id 记错**：`--list` 会给出全量 id，并在输错时提示相近项。
 - **要退回上一个版本**：`add_market.py` 和 `install_one.py` 都会把旧目录改名成 `<name>.old-<时间戳>` 留着，移回去即可。
 

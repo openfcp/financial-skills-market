@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import json
 import shutil
+import subprocess
 import sys
 import urllib.request
 from datetime import datetime
@@ -32,6 +33,7 @@ BASES = [
     f"https://raw.githubusercontent.com/{REPO}/{REF}/",
     f"https://fastly.jsdelivr.net/gh/{REPO}@{REF}/",
 ]
+API_FILE = f"https://api.github.com/repos/{REPO}/contents/{{path}}?ref={REF}"
 
 SKILLS_DIR = Path.home() / ".workbuddy" / "skills"
 PREFIX = "plugins/"
@@ -40,8 +42,25 @@ WRAPPER = {"package.json", "index.js", "cordis.patch.yml"}
 SKIP_DIRS = (".codebuddy-plugin/",)
 
 
-def get(url: str, timeout: int = 30) -> bytes:
-    req = urllib.request.Request(url, headers={"User-Agent": "financial-skills-market/install-one"})
+def auth_headers() -> dict:
+    """有 gh 登录就用它的 token（5000 次/小时），没有就匿名（60 次/小时）。"""
+    h = {"User-Agent": "financial-skills-market/install-one"}
+    try:
+        tok = subprocess.check_output(
+            ["gh", "auth", "token"], stderr=subprocess.DEVNULL, timeout=5
+        ).decode().strip()
+        if tok:
+            h["Authorization"] = f"Bearer {tok}"
+    except Exception:
+        pass
+    return h
+
+
+def get(url: str, timeout: int = 30, accept: str | None = None) -> bytes:
+    headers = auth_headers()
+    if accept:
+        headers["Accept"] = accept
+    req = urllib.request.Request(url, headers=headers)
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return r.read()
 
@@ -67,12 +86,22 @@ def list_plugin_blobs() -> dict[str, list[str]]:
 
 
 def download(rel_from_repo: str) -> bytes:
+    """三条通道依次试：GitHub 内容 API → raw → jsDelivr。
+
+    API 排第一不是因为快，是因为它最稳：本机网络常只放行 api.github.com，
+    raw 会静默超时；jsDelivr 对新仓库是冷缓存，首次请求会卡在回源上。
+    """
     last = ""
+    try:
+        return get(API_FILE.format(path=rel_from_repo), timeout=20,
+                   accept="application/vnd.github.raw")
+    except Exception as e:
+        last = f"api → {e}"
     for base in BASES:
         try:
-            return get(base + rel_from_repo, timeout=45)
+            return get(base + rel_from_repo, timeout=25)
         except Exception as e:
-            last = f"{base} → {e}"
+            last = f"{last} | {base} → {e}"
     raise SystemExit(f"[install-one] 取不到 {rel_from_repo}：{last}")
 
 
