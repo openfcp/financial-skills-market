@@ -36,7 +36,7 @@ agent_created: true
 这份清单线上叫「金融行业skill精选」，本技能是它的安装与检索入口。
 
 - 站点：https://openfcp.github.io/awesome-financial-skills/
-- 仓库：`openfcp/awesome-financial-skills`（`plugins/<id>/` 每个目录就是一个技能）
+- 仓库：`openfcp/awesome-financial-skills`（只存坐标不存正文，format 3；每条技能按 `source` 回原件取）
 - 真相源：`catalog.json`（技能元数据），下面的脚本都从线上读它，所以永远是最新版本
 
 ## 先判断要哪一种
@@ -74,7 +74,7 @@ python3 scripts/install_one.py consumer-protection-review   # 装
 python3 scripts/install_one.py <id> --force                 # 重装，旧目录留档
 ```
 
-落盘位置 `~/.workbuddy/skills/<id>/`，直接就是一个独立用户级技能，不依赖市场。只取技能本体（`SKILL.md` 与 assets/references），跳过 `index.js`、`package.json`、`cordis.patch.yml`、`.codebuddy-plugin/`——那是 dsh 和市场的包装，独立技能用不上。同样需要重启才在「技能」里出现。
+落盘位置 `~/.workbuddy/skills/<id>/`，直接就是一个独立用户级技能，不依赖市场。脚本读 `catalog.json` 的 `source` 回原件取正文：`skillhub` 下载 zip 解压，`github` 按 `repo`/`path`/`ref` 取目录（`path` 为空表示技能在仓库根，`source.exclude` 里的前缀会跳过，并用 git blob sha 校验每个文件）。只取技能本体（`SKILL.md` 与 assets/references），跳过 `index.js`、`package.json`、`cordis.patch.yml`、`.codebuddy-plugin/`——那是 dsh 和市场的包装，独立技能用不上。同样需要重启才在「技能」里出现。
 
 ## 查清单
 
